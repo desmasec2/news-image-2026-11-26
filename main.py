@@ -1,54 +1,45 @@
 #!/usr/bin/env python3
-"""News Image 2026-11-26 — entry program for the make.fun bounty
-"Sum up 26 November's world news in one image" (news-image-20261126).
+"""Entry program for the make.fun news-image-20261126 bounty.
 
-The entry is the poster in entry.png beside this file: one dense page
-that sums up Thursday 26 November 2026 in thirty-five dated stories
-from every region. This program copies that image to the output directory,
-unchanged, so the grader receives exactly the bytes in the repository
-and both of its runs write identical output.
+The repository ships the finished poster as entry.png. When the grader
+runs this program it simply delivers that image to the output folder,
+byte for byte, so the picture judged is exactly the one in the repo:
+one dense front page of 35 dated stories from Thursday 26 Nov 2026.
 
-Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for
-/output:
-
-    mkdir -p out && MAKEFUN_OUTPUT_DIR=out python3 main.py
+A local run looks like:
+    MAKEFUN_OUTPUT_DIR=out python3 main.py
 """
 
+from pathlib import Path
 import os
 import sys
 
-MAX_BYTES = 1_048_576  # the gate's 1 MiB cap for the entry image
-PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-JPEG_MAGIC = b"\xff\xd8\xff"
+LIMIT = 1024 * 1024  # the gate allows at most 1 MiB
+SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")  # PNG, JPEG
 
 
-def entry_bytes(path):
-    """Read the shipped image and check it against the gate's rules:
-    a whole PNG or JPEG, told apart by its first bytes, of at most
-    1 MiB. Anything else is refused before it can reach the output."""
-    with open(path, "rb") as handle:
-        data = handle.read()
-    if len(data) > MAX_BYTES:
-        raise SystemExit(f"entry.png is {len(data)} bytes, over the 1 MiB cap")
-    if not (data.startswith(PNG_MAGIC) or data.startswith(JPEG_MAGIC)):
-        raise SystemExit("entry.png is neither a PNG nor a JPEG by its first bytes")
-    return data
+def load_poster() -> bytes:
+    """Read the poster beside this file and check it against the gate:
+    a PNG or a JPEG by its first bytes, and no larger than the cap."""
+    poster = Path(__file__).with_name("entry.png")
+    blob = poster.read_bytes()
+    if len(blob) > LIMIT:
+        sys.exit(f"poster too large: {len(blob)} bytes (limit {LIMIT})")
+    if not blob.startswith(SIGNATURES):
+        sys.exit("poster is not a PNG or JPEG image")
+    return blob
 
 
-def main():
-    here = os.path.dirname(os.path.abspath(__file__))
-    source = os.path.join(here, "entry.png")
-    data = entry_bytes(source)
-
-    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
-    os.makedirs(out_dir, exist_ok=True)
-    target = os.path.join(out_dir, "entry.png")
-    with open(target, "wb") as handle:
-        handle.write(data)
-
-    print(f"wrote {target} ({len(data)} bytes)")
-    return 0
+def deliver(blob: bytes) -> Path:
+    """Write the poster into the output folder as entry.png."""
+    folder = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / "entry.png"
+    target.write_bytes(blob)
+    return target
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    image = load_poster()
+    written = deliver(image)
+    print(f"entry.png delivered to {written} ({len(image)} bytes)")
